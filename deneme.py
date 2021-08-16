@@ -3,15 +3,13 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F 
-from tensorboardX import SummaryWriter
+#from tensorboardX import SummaryWriter
 
 import gym
-import roboschool
+#import roboschool
 import sys
 import datcom_gym_env
 #env = gym.make('Datcom-v1')
-
-
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action,transfer = False):
@@ -32,7 +30,6 @@ class Actor(nn.Module):
                         dtype=np.float32)
         return x
         
-
 class Critic(nn.Module):
     def __init__(self,state_dim,action_dim):
         super(Critic,self).__init__()
