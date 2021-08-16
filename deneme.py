@@ -81,5 +81,16 @@ class ReplayBuffer(object):#holds SARS state,action,reward,next state
             #storage dolduysa baştan tekrar doldurmaya başlıyor i guess?
         else:
             self.storage.append(data)
-    def
+    def sample(self,batch_size):#train edeceği batch size
+        ind=np.random.randint(0,len(self.storage),size=batch_size) #random number within the range
+        states,actions,next_states,rewards,dones=[],[],[],[],[]
+        for i in ind:
+            s,a,s_,r,d=self.storage[i]
+            states.append(np.array(s,copy=False))
+            actions.append(np.array(a,copy=False))
+            next_states.append(np.array(s_,copy=False))
+            rewards.append(np.array(r,copy=False))
+            dones.append(np.array(d,copy=False))
+        return np.array(states),np.array(actions),np.array(next_states),np.array(rewards).reshape(-1,1),np.array(dones).reshape(-1,1)
+
     
