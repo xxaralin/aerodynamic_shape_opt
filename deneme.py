@@ -81,5 +81,5 @@ class ReplayBuffer(object):#holds SARS state,action,reward,next state
             #storage dolduysa baştan tekrar doldurmaya başlıyor i guess?
         else:
             self.storage.append(data)
-
+    def
     
