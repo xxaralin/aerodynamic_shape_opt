@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F 
 from tensorboardX import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 
 import gym
 #import roboschool
