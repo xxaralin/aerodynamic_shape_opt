@@ -101,12 +101,12 @@ class TD3(object):
         self.actor=Actor(state_dim,action_dim, max_action).to(device)
         self.actor_target=Actor(state_dim,action_dim,max_action).to(device)
         self.actor_target.load_state_dict(self.actor.state_dict())
-        self.actor_optimizer=torch.optim.Adam(self.actor.parameters(),lr=le-3)
+        self.actor_optimizer=torch.optim.Adam(self.actor.parameters(),lr=1e-3)
 
         self.critic=Critic(state_dim,action_dim).to(device)
         self.critic_target=Critic(state_dim,action_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
-        self.critic_optimizer=torch.optim.Adam(self.critic.parameters(),lr=le-3)
+        self.critic_optimizer=torch.optim.Adam(self.critic.parameters(),lr=1e-3)
 
         self.max_action=max_action
         self.env=env
