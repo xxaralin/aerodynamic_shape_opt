@@ -165,7 +165,7 @@ class TD3(object):
         torch.save(self.actor.state_dict(), '%s%s_actor.pth'% (directory, filename))
         torch.save(self.critic.state_dict(), '%s%s_critic.pth'% (directory, filename))
 
-    def load(self,filename="deneme.py", directory="./Desktop/staj/nil"): ####hangi belge yükleniyor???
+    def load(self,filename="datcom_env.py", directory="./Desktop/staj/Datcom-Env/datcom_gym_env/envs"): ####hangi belge yükleniyor???
         self.actor.load_state_dict(torch.load('%s%s_actor.pth'%(directory, filename)))
         self.critic.load_state_dict(torch.load('%s%s_critic.pth'%(directory, filename)))
 
