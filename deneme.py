@@ -179,7 +179,8 @@ class Runner():
 
     def next_step(self,episode_timesteps, noise=0.1):
         action=self.agent.select_action(np.array(self.obs),noise=0.1)
-        new_obs, reward, done, _=self.env.step(action)
+        normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
+        new_obs, reward, done, _=self.env.step(action,normed_state)
         done_bool=0 if episode_timesteps+1==200 else float (done)
 
         replay_buffer.add((self.obs, new_obs, action, reward, done_bool))
@@ -201,7 +202,8 @@ def evaluate_policy(policy, env, eval_episodes=100, render=False):
             if render:
                 env.render()
             action=policy.select_action(np.array(obs),noise=0)
-            obs, reward, done, _=env.step(action)
+            normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
+            obs, reward, done, _=env.step(action,normed_state)
             avg_reward+=reward
     avg_reward/=eval_episodes
 
@@ -218,7 +220,8 @@ def observe(env, replay_buffer, observation_steps):
 
     while time_steps< observation_steps:
         action=env.action_space.sample()
-        new_obs, reward, done, _=env.step(action)
+        normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
+        new_obs, reward, done, _=env.step(action,normed_state)
 
         replay_buffer.add((obs,new_obs,action,done))
 
