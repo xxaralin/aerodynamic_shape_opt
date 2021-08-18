@@ -5,10 +5,8 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F 
 from tensorboardX import SummaryWriter
-#from torch.utils.tensorboard import SummaryWriter
 
 import gym
-#import roboschool
 import sys
 import datcom_gym_env
 #env = gym.make('Datcom-v1')
@@ -180,8 +178,7 @@ class Runner():
 
     def next_step(self,episode_timesteps, noise=0.1):
         action=self.agent.select_action(np.array(self.obs),noise=0.1)
-        normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
-        new_obs, reward, done, _=self.env.step(action,normed_state)
+        new_obs, reward, done, _=self.env.step(action)
         done_bool=0 if episode_timesteps+1==200 else float (done)
 
         replay_buffer.add((self.obs, new_obs, action, reward, done_bool))
@@ -203,8 +200,7 @@ def evaluate_policy(policy, env, eval_episodes=100, render=False):
             if render:
                 env.render()
             action=policy.select_action(np.array(obs),noise=0)
-            normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
-            obs, reward, done, _=env.step(action,normed_state)
+            obs, reward, done, _=env.step(action)
             avg_reward+=reward
     avg_reward/=eval_episodes
 
@@ -221,8 +217,7 @@ def observe(env, replay_buffer, observation_steps):
 
     while time_steps< observation_steps:
         action=env.action_space.sample()
-        normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
-        new_obs, reward, done, _=env.step(action,normed_state)
+        new_obs, reward, done, _=env.step(action)
 
         replay_buffer.add((obs,new_obs,action,done))
 
@@ -344,3 +339,84 @@ for i in range(10):
     evaluate_policy(policy, env, render=True)
 
 env.close()
+
+"""    total_step = 0
+    epoch = 0
+    for i in range(args.max_episode):
+        total_reward = 0
+        step =0        
+        state = env.reset()
+        state = (state - env.state_lower ) / (env.state_upper-env.state_lower)
+        
+        for t in count():               
+            action = agent.select_action(state)               
+            #action = action * (env.state_upper-env.state_lower) +  env.state_lower
+            agent.writer.add_scalar('Main/action_0', action[0], global_step=epoch)
+            agent.writer.add_scalar('Main/action_1', action[1], global_step=epoch)
+            agent.writer.add_scalar('Main/action_2', action[2], global_step=epoch)
+            agent.writer.add_scalar('Main/action_3', action[3], global_step=epoch)
+            agent.writer.add_scalar('Main/action_4', action[4], global_step=epoch)
+            agent.writer.add_scalar('Main/action_5', action[5], global_step=epoch)
+            agent.writer.add_scalar('Main/action_6', action[6], global_step=epoch)
+            agent.writer.add_scalar('Main/action_7', action[7], global_step=epoch)
+
+            agent.writer.add_scalar('States/normed_state_0', state[0], global_step=epoch)
+            agent.writer.add_scalar('States/normed_state_1', state[1], global_step=epoch)
+            agent.writer.add_scalar('States/normed_state_2', state[2], global_step=epoch)
+            agent.writer.add_scalar('States/normed_state_3', state[3], global_step=epoch)
+            agent.writer.add_scalar('States/normed_state_4', state[4], global_step=epoch)
+            agent.writer.add_scalar('States/normed_state_5', state[5], global_step=epoch)
+            agent.writer.add_scalar('States/normed_state_6', state[6], global_step=epoch)
+            agent.writer.add_scalar('States/normed_state_7', state[7], global_step=epoch)
+
+
+            #action = (action + 0.025*2.5066*args.exploration_noise*np.random.normal(0, args.exploration_noise, size=env.action_space.shape[0]))
+            noise = 0.025*2.5066*variance*np.random.normal(0, variance, size=env.action_space.shape[0])
+
+            agent.writer.add_scalar('Main/noise_0', noise[0], global_step=epoch)
+            agent.writer.add_scalar('Main/noise_1', noise[1], global_step=epoch)
+            agent.writer.add_scalar('Main/noise_2', noise[2], global_step=epoch)
+            agent.writer.add_scalar('Main/noise_3', noise[3], global_step=epoch)
+            agent.writer.add_scalar('Main/noise_4', noise[4], global_step=epoch)
+            agent.writer.add_scalar('Main/noise_5', noise[5], global_step=epoch)
+            agent.writer.add_scalar('Main/noise_6', noise[6], global_step=epoch)
+            agent.writer.add_scalar('Main/noise_7', noise[7], global_step=epoch)
+
+            action = action + noise 
+            next_state, reward, done, info = env.step(action,state)
+            next_state = (next_state - env.state_lower ) / (env.state_upper-env.state_lower)
+            agent.replay_buffer.push((state, next_state, action, reward, np.float(done)))
+
+            state = next_state
+
+            step += 1
+            total_reward += reward
+            epoch += 1
+            agent.writer.add_scalar('Main/step_reward', reward, global_step=epoch)
+            agent.writer.add_scalar('Main/CL_CD', env.cl_cd, global_step=epoch)
+            agent.writer.add_scalar('States/XLE1', env.XLE1, global_step=epoch)
+            agent.writer.add_scalar('States/XLE2', env.XLE2, global_step=epoch)
+            agent.writer.add_scalar('States/CHORD1_1', env.CHORD1_1, global_step=epoch)
+            agent.writer.add_scalar('States/CHORD1_2', env.CHORD1_2, global_step=epoch)
+            agent.writer.add_scalar('States/CHORD2_1', env.CHORD2_1, global_step=epoch)
+            agent.writer.add_scalar('States/CHORD2_2', env.CHORD2_2, global_step=epoch)
+            agent.writer.add_scalar('States/SSPAN1_2', env.SSPAN1_2, global_step=epoch)
+            agent.writer.add_scalar('States/SSPAN2_2', env.SSPAN2_2, global_step=epoch)
+            #agent.writer.add_scalar('debug_reward/cl_cd_diff', env.cl_cd_diff, global_step=epoch)
+            #agent.writer.add_scalar('debug_reward/xcp_diff', env.xcp_diff, global_step=epoch)
+            #agent.writer.add_scalar('debug_reward/cd_diff', env.cd_diff, global_step=epoch)
+            #agent.writer.add_scalar('debug_reward/which', env.which, global_step=epoch)
+
+            if done or step > 50:
+                break
+
+        total_step += step+1
+        print("Total T:{} Episode: \t{} Total Reward: \t{:0.2f}".format(total_step, i, total_reward))
+        agent.update()
+        agent.writer.add_scalar('Main/episode_reward', total_reward, global_step=i)
+        agent.writer.add_scalar('Main/episode_steps', step, global_step=i)
+        agent.writer.add_scalar('Main/episode_CL_CD', env.cl_cd, global_step=i)
+       # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
+
+        if i % args.log_interval == 0:
+            agent.save()"""
