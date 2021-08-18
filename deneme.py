@@ -10,7 +10,10 @@ import gym
 import sys
 import datcom_gym_env
 #env = gym.make('Datcom-v1')
+     
 
+args = {'max_episode': 800,
+        'log_interval': 5}
 def hidden_init(layer):
     fan_in = layer.weight.data.size()[0]
     lim = 1. / np.sqrt(fan_in)
@@ -19,20 +22,18 @@ def hidden_init(layer):
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action,transfer = False):
         super(Actor,self).__init__()
+        self.action_size = 5
 
-        self.l1=nn.Linear(state_dim,400)
-        self.l2=nn.Linear(400,300)
-        self.l3=nn.Linear(300,action_dim)
+        self.l1=nn.Linear(state_dim,200)
+        self.l2=nn.Linear(200,200)
+        self.l3=nn.Linear(200,action_dim)
         self.max_action=max_action
 
     def forward(self,x):
         x=F.relu(self.l1(x))
         x=F.relu(self.l2(x))
-        x=self.max_action = np.array([(1.75-1.25)/self.action_size , (3.2-3.0)/self.action_size ,
-                                     (0.4-0.1)/self.action_size , (0.09-0.0)/self.action_size ,
-                                      (0.4-0.1)/self.action_size , (0.25-0.0)/self.action_size ,
-                                       (0.3-0.1)/self.action_size , (0.3-0.1)/self.action_size],
-                        dtype=np.float32)
+        x=F.tanh(self.l3(x))*self.max_action
+
         return x
         
 class Critic(nn.Module):
@@ -40,14 +41,14 @@ class Critic(nn.Module):
         super(Critic,self).__init__()
 
         #Q1
-        self.l1=nn.Liner(state_dim + action_dim,400)
-        self.l2=nn.Linear(400,300)
-        self.l3=nn.Linear(300,1)
+        self.l1=nn.Linear(state_dim + action_dim,200)
+        self.l2=nn.Linear(200,200)
+        self.l3=nn.Linear(200,1)
 
         #Q2
-        self.l4=nn.Liner(state_dim + action_dim,400)
-        self.l5=nn.Linear(400,300)
-        self.l6=nn.Linear(300,1)
+        self.l4=nn.Linear(state_dim + action_dim,200)
+        self.l5=nn.Linear(200,200)
+        self.l6=nn.Linear(200,1)
 
     def forward(self, x, u):
         xu = torch.cat([x, u], 1)
@@ -71,7 +72,7 @@ class Critic(nn.Module):
         return x1
 #memory part
 class ReplayBuffer(object):#holds SARS state,action,reward,next state
-    def __init__(self,max_size=1000000):
+    def __init__(self,max_size=1000):
         self.storage=[]
         self.max_size=max_size
         self.ptr=0
@@ -96,31 +97,30 @@ class ReplayBuffer(object):#holds SARS state,action,reward,next state
         return np.array(states),np.array(actions),np.array(next_states),np.array(rewards).reshape(-1,1),np.array(dones).reshape(-1,1)
 #agent (TD3)- trains networks ve outputs actions
 class TD3(object):
-    def __init__(self, state_dim, action_dim, max_action,env):
+    def __init__(self, state_dim, action_dim, max_action,env, lr):
         self.actor=Actor(state_dim,action_dim, max_action).to(device)
         self.actor_target=Actor(state_dim,action_dim,max_action).to(device)
         self.actor_target.load_state_dict(self.actor.state_dict())
-        self.actor_optimizer=torch.optim.Adam(self.actor.parameters(),lr=1e-3)
+        self.actor_optimizer=torch.optim.Adam(self.actor.parameters(),lr=lr)
 
         self.critic=Critic(state_dim,action_dim).to(device)
         self.critic_target=Critic(state_dim,action_dim).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
-        self.critic_optimizer=torch.optim.Adam(self.critic.parameters(),lr=1e-3)
+        self.critic_optimizer=torch.optim.Adam(self.critic.parameters(),lr=lr)
 
         self.max_action=max_action
         self.env=env
 
-    def select_action(self, state,noise=0.1):#pretty self explanatory
+    def select_action(self, state):#pretty self explanatory
         state=torch.FloatTensor(state.reshape(1,-1)).to(device)
-        print(state)
 
-        action=self.actor(state).cpu().data.numpy().flatten()
-        if noise!=0:
-            action=(action+np.random.normal(0, noise, size=self.env.action_space.shape[0]))
+        action=self.actor(state)
+        action=action.cpu().data.numpy().flatten()
+
 
         return action.clip(self.env.action_space.low, self.env.action_space.high)
 
-    def train(self, replay_buffer, iterations, batch_size=100, discount=0.99,tau=0.005,policy_noise=0.2,noise_clip=0.5, policy_freq=2):
+    def train(self, replay_buffer, iterations, batch_size=100, discount=0.99,tau=0.005,policy_noise=0.2,noise_clip=0.05, policy_freq=2):
     #trains and updates actor and critic
         for it in range(iterations):
             #sample relay buffer
@@ -154,17 +154,17 @@ class TD3(object):
 
             #delay
             if it % policy_freq==0:
-                actor_loss=+self.critic.Q1(state, self.actor(state)).mean()
+                actor_loss= -self.critic.Q1(state, self.actor(state)).mean()
 
                 self.actor_optimizer.zero_grad()
-                actor_loss.backwards()
+                actor_loss.backward()
                 self.actor_optimizer.step()
 
     def save(self,filename, directory):
         torch.save(self.actor.state_dict(), '%s%s_actor.pth'% (directory, filename))
         torch.save(self.critic.state_dict(), '%s%s_critic.pth'% (directory, filename))
 
-    def load(self,filename="datcom_env.py", directory="./Desktop/staj/Datcom-Env/datcom_gym_env/envs"): ####hangi belge yükleniyor???
+    def load(self,filename="deneme2", directory="./"): 
         self.actor.load_state_dict(torch.load('%s%s_actor.pth'%(directory, filename)))
         self.critic.load_state_dict(torch.load('%s%s_critic.pth'%(directory, filename)))
 
@@ -176,10 +176,12 @@ class Runner():
         self.obs=env.reset()
         self.done=False
 
-    def next_step(self,episode_timesteps, noise=0.1):
-        action=self.agent.select_action(np.array(self.obs),noise=0.1)
-        new_obs, reward, done, _=self.env.step(action)
-        done_bool=0 if episode_timesteps+1==200 else float (done)
+    def next_step(self, noise=0.1):
+        noise1=np.random.normal(0, noise, size=self.env.action_space.shape[0])
+        action=self.agent.select_action(np.array(self.obs))+noise1
+        normed_state=(self.obs-env.state_lower)/(env.state_upper-env.state_lower)
+        new_obs, reward, done, _=self.env.step(action,normed_state)
+        done_bool=float (done)
 
         replay_buffer.add((self.obs, new_obs, action, reward, done_bool))
         self.obs=new_obs
@@ -199,8 +201,9 @@ def evaluate_policy(policy, env, eval_episodes=100, render=False):
         while not done:
             if render:
                 env.render()
-            action=policy.select_action(np.array(obs),noise=0)
-            obs, reward, done, _=env.step(action)
+            action=policy.select_action(np.array(obs))
+            normed_state=(obs-env.state_lower)/(env.state_upper-env.state_lower)
+            obs, reward, done, _=env.step(action,normed_state)
             avg_reward+=reward
     avg_reward/=eval_episodes
 
@@ -213,14 +216,14 @@ def evaluate_policy(policy, env, eval_episodes=100, render=False):
 def observe(env, replay_buffer, observation_steps):
     time_steps=0
     obs=env.reset()
+    obs=(obs-env.state_lower)/(env.state_upper-env.state_lower)
     done=False
 
     while time_steps< observation_steps:
         action=env.action_space.sample()
-        new_obs, reward, done, _=env.step(action)
-
-        replay_buffer.add((obs,new_obs,action,done))
-
+        new_obs, reward, done, _=env.step(action,obs)
+        new_obs=(new_obs-env.state_lower)/(env.state_upper-env.state_lower)
+        replay_buffer.add((obs,new_obs,action, reward, done))
         obs=new_obs
         time_steps+=1
 
@@ -230,8 +233,8 @@ def observe(env, replay_buffer, observation_steps):
         print("\rPopulating Buffer {}/{}.".format(time_steps, observation_steps), end="")
         sys.stdout.flush()
 
-def train(agent,test_env):#train for exploration
-    total_timesteps=0
+def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for exploration
+    #total_timesteps=0
     timesteps_since_eval=0
     episode_num=0
     episode_reward=0
@@ -239,43 +242,23 @@ def train(agent,test_env):#train for exploration
     done=False 
     obs = env.reset()
     evaluations=[]
-    rewards=[]
+    #rewards=[]
     best_avg=-2000
 
-    writer=SummaryWriter(comment="-TD3_Baseline_HalfCheetah")
+    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}")
 
-    while total_timesteps<EXPLORATION:
+    """while total_timesteps<EXPLORATION:
         if done:
             if total_timesteps!=0:
-                rewards.append(episode_reward)
-                avg_reward=np.mean(rewards[-100:])
 
-                writer.add_scalar("avg_reward", avg_reward, total_timesteps)
-                writer.add_scalar("reward_steps", reward, total_timesteps)
-                writer.add_scalar("episode_reward", episode_reward, total_timesteps)
 
-                if best_avg<avg_reward:
-                    best_avg=avg_reward
-                    print("saving best model....\n")
-                    agent.save("best_avg","saves")
-                print("\rTotal T: {:d} Episode Num: {:d} Reward: {:f} Avg Reward: {:f}".format(
-                    total_timesteps, episode_num, episode_reward, avg_reward), end="")
-                sys.stdout.flush()
-
-                if avg_reward>=REWARD_THRESH:
-                    break
-                agent.train(replay_buffer, episode_timesteps, BATCH_SIZE, GAMMA, TAU,NOISE,NOISE_CLIP, POLICY_FREQUENCY)
-
-                if timesteps_since_eval>=EVAL_FREQUENCY:
-                    timesteps_since_eval%EVAL_FREQUENCY
+                 if timesteps_since_eval>=EVAL_FREQUENCY:
+                    timesteps_since_eval%=EVAL_FREQUENCY
                     eval_reward=evaluate_policy(agent, test_env)
                     evaluations.append(avg_reward)
                     writer.add_scalar("eval_reward", eval_reward,total_timesteps)
 
-                    if best_avg<eval_reward:
-                        best_avg=eval_reward
-                        print("saving best model....\n")
-                        agent.save("best_avg","saves")
+                    
 
                 episode_reward=0
                 episode_timesteps=0
@@ -287,136 +270,139 @@ def train(agent,test_env):#train for exploration
         total_timesteps+=1
         timesteps_since_eval+=1
 
-
-
-
-ENV = "Datcom-v1"#"RoboschoolHalfCheetah-v1"
-SEED = 0
-OBSERVATION = 10000
-EXPLORATION = 5000000
-BATCH_SIZE = 100
-GAMMA = 0.99
-TAU = 0.005
-NOISE = 0.2
-NOISE_CLIP = 0.5
-EXPLORE_NOISE = 0.1
-POLICY_FREQUENCY = 2
-EVAL_FREQUENCY = 5000
-REWARD_THRESH = 8000
-
-env = gym.make(ENV)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Set seeds
-env.seed(SEED)
-torch.manual_seed(SEED)
-np.random.seed(SEED)
-
-state_dim = env.observation_space.shape[0]
-action_dim = env.action_space.shape[0] 
-max_action = float(env.action_space.high[0])
-
-policy = TD3(state_dim, action_dim, max_action, env)
-
-replay_buffer = ReplayBuffer()
-
-runner = Runner(env, policy, replay_buffer)
-
-total_timesteps = 0
-timesteps_since_eval = 0
-episode_num = 0
-done = True
-
-observe(env, replay_buffer, OBSERVATION)
-train(policy, env)
-
-
-# Load trained policy
-policy.load()
-
-# watch the trained agent run 
-for i in range(10):
-    evaluate_policy(policy, env, render=True)
-
-env.close()
-
-"""    total_step = 0
+"""
+      
+    total_step = 0
     epoch = 0
-    for i in range(args.max_episode):
+
+    for i in range(args['max_episode']):
         total_reward = 0
         step =0        
         state = env.reset()
         state = (state - env.state_lower ) / (env.state_upper-env.state_lower)
+     
         
-        for t in count():               
+        for t in range(25):   ##while(1)            
             action = agent.select_action(state)               
             #action = action * (env.state_upper-env.state_lower) +  env.state_lower
-            agent.writer.add_scalar('Main/action_0', action[0], global_step=epoch)
-            agent.writer.add_scalar('Main/action_1', action[1], global_step=epoch)
-            agent.writer.add_scalar('Main/action_2', action[2], global_step=epoch)
-            agent.writer.add_scalar('Main/action_3', action[3], global_step=epoch)
-            agent.writer.add_scalar('Main/action_4', action[4], global_step=epoch)
-            agent.writer.add_scalar('Main/action_5', action[5], global_step=epoch)
-            agent.writer.add_scalar('Main/action_6', action[6], global_step=epoch)
-            agent.writer.add_scalar('Main/action_7', action[7], global_step=epoch)
-
-            agent.writer.add_scalar('States/normed_state_0', state[0], global_step=epoch)
-            agent.writer.add_scalar('States/normed_state_1', state[1], global_step=epoch)
-            agent.writer.add_scalar('States/normed_state_2', state[2], global_step=epoch)
-            agent.writer.add_scalar('States/normed_state_3', state[3], global_step=epoch)
-            agent.writer.add_scalar('States/normed_state_4', state[4], global_step=epoch)
-            agent.writer.add_scalar('States/normed_state_5', state[5], global_step=epoch)
-            agent.writer.add_scalar('States/normed_state_6', state[6], global_step=epoch)
-            agent.writer.add_scalar('States/normed_state_7', state[7], global_step=epoch)
-
+            writer.add_scalar('Main/action_0', action[0], global_step=epoch)
+            writer.add_scalar('Main/action_1', action[1], global_step=epoch)
+            writer.add_scalar('Main/action_2', action[2], global_step=epoch)
+            writer.add_scalar('Main/action_3', action[3], global_step=epoch)
+            writer.add_scalar('Main/action_4', action[4], global_step=epoch)
+            writer.add_scalar('Main/action_5', action[5], global_step=epoch)
+            writer.add_scalar('Main/action_6', action[6], global_step=epoch)
+            writer.add_scalar('Main/action_7', action[7], global_step=epoch)
+            writer.add_scalar('States/normed_state_0', state[0], global_step=epoch)
+            writer.add_scalar('States/normed_state_1', state[1], global_step=epoch)
+            writer.add_scalar('States/normed_state_2', state[2], global_step=epoch)
+            writer.add_scalar('States/normed_state_3', state[3], global_step=epoch)
+            writer.add_scalar('States/normed_state_4', state[4], global_step=epoch)
+            writer.add_scalar('States/normed_state_5', state[5], global_step=epoch)
+            writer.add_scalar('States/normed_state_6', state[6], global_step=epoch)
+            writer.add_scalar('States/normed_state_7', state[7], global_step=epoch)
 
             #action = (action + 0.025*2.5066*args.exploration_noise*np.random.normal(0, args.exploration_noise, size=env.action_space.shape[0]))
-            noise = 0.025*2.5066*variance*np.random.normal(0, variance, size=env.action_space.shape[0])
+            noise = np.random.normal(0, noise_param, size=env.action_space.shape[0])
 
-            agent.writer.add_scalar('Main/noise_0', noise[0], global_step=epoch)
-            agent.writer.add_scalar('Main/noise_1', noise[1], global_step=epoch)
-            agent.writer.add_scalar('Main/noise_2', noise[2], global_step=epoch)
-            agent.writer.add_scalar('Main/noise_3', noise[3], global_step=epoch)
-            agent.writer.add_scalar('Main/noise_4', noise[4], global_step=epoch)
-            agent.writer.add_scalar('Main/noise_5', noise[5], global_step=epoch)
-            agent.writer.add_scalar('Main/noise_6', noise[6], global_step=epoch)
-            agent.writer.add_scalar('Main/noise_7', noise[7], global_step=epoch)
+            writer.add_scalar('Main/noise_0', noise[0], global_step=epoch)
+            writer.add_scalar('Main/noise_1', noise[1], global_step=epoch)
+            writer.add_scalar('Main/noise_2', noise[2], global_step=epoch)
+            writer.add_scalar('Main/noise_3', noise[3], global_step=epoch)
+            writer.add_scalar('Main/noise_4', noise[4], global_step=epoch)
+            writer.add_scalar('Main/noise_5', noise[5], global_step=epoch)
+            writer.add_scalar('Main/noise_6', noise[6], global_step=epoch)
+            writer.add_scalar('Main/noise_7', noise[7], global_step=epoch)
 
             action = action + noise 
             next_state, reward, done, info = env.step(action,state)
             next_state = (next_state - env.state_lower ) / (env.state_upper-env.state_lower)
-            agent.replay_buffer.push((state, next_state, action, reward, np.float(done)))
+            replay_buffer.add((state, next_state, action, reward, np.float(done)))
 
             state = next_state
+            
 
             step += 1
             total_reward += reward
             epoch += 1
-            agent.writer.add_scalar('Main/step_reward', reward, global_step=epoch)
-            agent.writer.add_scalar('Main/CL_CD', env.cl_cd, global_step=epoch)
-            agent.writer.add_scalar('States/XLE1', env.XLE1, global_step=epoch)
-            agent.writer.add_scalar('States/XLE2', env.XLE2, global_step=epoch)
-            agent.writer.add_scalar('States/CHORD1_1', env.CHORD1_1, global_step=epoch)
-            agent.writer.add_scalar('States/CHORD1_2', env.CHORD1_2, global_step=epoch)
-            agent.writer.add_scalar('States/CHORD2_1', env.CHORD2_1, global_step=epoch)
-            agent.writer.add_scalar('States/CHORD2_2', env.CHORD2_2, global_step=epoch)
-            agent.writer.add_scalar('States/SSPAN1_2', env.SSPAN1_2, global_step=epoch)
-            agent.writer.add_scalar('States/SSPAN2_2', env.SSPAN2_2, global_step=epoch)
-            #agent.writer.add_scalar('debug_reward/cl_cd_diff', env.cl_cd_diff, global_step=epoch)
-            #agent.writer.add_scalar('debug_reward/xcp_diff', env.xcp_diff, global_step=epoch)
-            #agent.writer.add_scalar('debug_reward/cd_diff', env.cd_diff, global_step=epoch)
-            #agent.writer.add_scalar('debug_reward/which', env.which, global_step=epoch)
+            writer.add_scalar('Main/step_reward', reward, global_step=epoch)
+            writer.add_scalar('Main/CL_CD', env.cl_cd, global_step=epoch)
+            writer.add_scalar('States/XLE1', env.XLE1, global_step=epoch)
+            writer.add_scalar('States/XLE2', env.XLE2, global_step=epoch)
+            writer.add_scalar('States/CHORD1_1', env.CHORD1_1, global_step=epoch)
+            writer.add_scalar('States/CHORD1_2', env.CHORD1_2, global_step=epoch)
+            writer.add_scalar('States/CHORD2_1', env.CHORD2_1, global_step=epoch)
+            writer.add_scalar('States/CHORD2_2', env.CHORD2_2, global_step=epoch)
+            writer.add_scalar('States/SSPAN1_2', env.SSPAN1_2, global_step=epoch)
+            writer.add_scalar('States/SSPAN2_2', env.SSPAN2_2, global_step=epoch)
+            #writer.add_scalar('debug_reward/cl_cd_diff', env.cl_cd_diff, global_step=epoch)
+            #writer.add_scalar('debug_reward/xcp_diff', env.xcp_diff, global_step=epoch)
+            #writer.add_scalar('debug_reward/cd_diff', env.cd_diff, global_step=epoch)
+            #writer.add_scalar('debug_reward/which', env.which, global_step=epoch)
 
-            if done or step > 50:
+            if done or step > 20:
                 break
+
 
         total_step += step+1
         print("Total T:{} Episode: \t{} Total Reward: \t{:0.2f}".format(total_step, i, total_reward))
-        agent.update()
-        agent.writer.add_scalar('Main/episode_reward', total_reward, global_step=i)
-        agent.writer.add_scalar('Main/episode_steps', step, global_step=i)
-        agent.writer.add_scalar('Main/episode_CL_CD', env.cl_cd, global_step=i)
+
+        agent.train(replay_buffer, step, BATCH_SIZE, GAMMA, TAU,noise_param,noise_clip_param, POLICY_FREQUENCY)
+        writer.add_scalar('Main/episode_reward', total_reward, global_step=i)
+        writer.add_scalar('Main/episode_steps', step, global_step=i)
+        writer.add_scalar('Main/episode_CL_CD', env.cl_cd, global_step=i)
        # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
 
-        if i % args.log_interval == 0:
-            agent.save()"""
+        if i % args['log_interval'] == 0:
+            agent.save('deneme2', './')
+
+
+
+ENV = "Datcom-v1"
+SEED = 0
+OBSERVATION = 1000
+BATCH_SIZE = 32
+GAMMA = 0.99
+TAU = 0.005
+EXPLORE_NOISE = 0.1
+POLICY_FREQUENCY = 2
+for NOISE in [1e-5, 1e-4, 5e-4, 1e-3, 5e-2, 1e-2]:
+    for lr in [1e-6, 5e-6, 1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-2, 1e-2]:
+        NOISE_CLIP = 2*NOISE
+        env = gym.make(ENV)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        torch.autograd.set_detect_anomaly(True)
+        # Set seeds
+        env.seed(SEED)
+        torch.manual_seed(SEED)
+        np.random.seed(SEED)
+
+        state_dim = env.observation_space.shape[0]
+        action_dim = env.action_space.shape[0] 
+        max_action = float(env.action_space.high[0])
+
+        policy = TD3(state_dim, action_dim, max_action, env, lr)
+
+        replay_buffer = ReplayBuffer()
+
+        #runner = Runner(env, policy, replay_buffer)
+
+        total_timesteps = 0
+        timesteps_since_eval = 0
+        episode_num = 0
+        done = True
+
+        observe(env, replay_buffer, OBSERVATION)
+        train(policy, NOISE, NOISE_CLIP, lr)
+
+
+        # Load trained policy
+        policy.load()
+
+        # watch the trained agent run 
+        '''
+        for i in range(10):
+            evaluate_policy(policy, env)
+        '''
+
+        env.close()
