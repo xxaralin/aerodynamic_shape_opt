@@ -12,8 +12,8 @@ import datcom_gym_env
 #env = gym.make('Datcom-v1')
      
 
-args = {'max_episode': 100,
-        'log_interval': 2}
+args = {'max_episode': 800,
+        'log_interval': 5}
 def hidden_init(layer):
     fan_in = layer.weight.data.size()[0]
     lim = 1. / np.sqrt(fan_in)
@@ -32,7 +32,7 @@ class Actor(nn.Module):
     def forward(self,x):
         x=F.relu(self.l1(x))
         x=F.relu(self.l2(x))
-        x = self.max_action * torch.tanh(self.l3(x)) 
+        x=F.tanh(self.l3(x))*self.max_action
 
         return x
         
@@ -121,7 +121,7 @@ class TD3(object):
         return action.clip(self.env.action_space.low, self.env.action_space.high)
 
     def train(self, replay_buffer, iterations, batch_size=100, discount=0.99,tau=0.005,policy_noise=0.2,noise_clip=0.05, policy_freq=2):
-     #trains and updates actor and critic
+    #trains and updates actor and critic
         for it in range(iterations):
             #sample relay buffer
             x, y, u, r, d=replay_buffer.sample(batch_size)
@@ -246,6 +246,31 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
     best_avg=-2000
 
     writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}")
+
+    """while total_timesteps<EXPLORATION:
+        if done:
+            if total_timesteps!=0:
+
+
+                 if timesteps_since_eval>=EVAL_FREQUENCY:
+                    timesteps_since_eval%=EVAL_FREQUENCY
+                    eval_reward=evaluate_policy(agent, test_env)
+                    evaluations.append(avg_reward)
+                    writer.add_scalar("eval_reward", eval_reward,total_timesteps)
+
+                    
+
+                episode_reward=0
+                episode_timesteps=0
+                episode_num+=1
+        reward, done=runner.next_step(episode_timesteps) 
+        episode_reward+=reward  
+
+        episode_timesteps+=1
+        total_timesteps+=1
+        timesteps_since_eval+=1
+
+"""
       
     total_step = 0
     epoch = 0
@@ -335,14 +360,14 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
 
 ENV = "Datcom-v1"
 SEED = 0
-OBSERVATION = 100
+OBSERVATION = 1000
 BATCH_SIZE = 32
 GAMMA = 0.99
-TAU = 0.01
+TAU = 0.005
 EXPLORE_NOISE = 0.1
 POLICY_FREQUENCY = 2
-for NOISE in [1e-3]:
-    for lr in [1e-3]:
+for NOISE in [1e-5, 1e-4, 5e-4, 1e-3, 5e-2, 1e-2]:
+    for lr in [1e-6, 5e-6, 1e-5, 5e-5, 1e-4, 5e-4, 1e-3, 5e-2, 1e-2]:
         NOISE_CLIP = 2*NOISE
         env = gym.make(ENV)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
