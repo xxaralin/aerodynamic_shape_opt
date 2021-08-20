@@ -1,5 +1,7 @@
 #SAC
 #https://github.com/quantumiracle/Popular-RL-Algorithms/blob/master/sac.py#L91
+#https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/model.py
+#https://towardsdatascience.com/soft-actor-critic-demystified-b8427df61665
 import math
 import random
 import sys
