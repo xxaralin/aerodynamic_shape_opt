@@ -53,7 +53,25 @@ class PolicyNetwork(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_size=[400,300], 
                  init_w=3e-3, log_std_min=-20, log_std_max=2, epsilon=1e-6):
         super(PolicyNetwork, self).__init__()
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
+        self.epsilon=epsilon
+        self.linear1 = nn.Linear(num_inputs, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, hidden_size)
+        self.linear3 = nn.Linear(hidden_size, hidden_size)
+        self.linear4 = nn.Linear(hidden_size, hidden_size)
+
+        self.mean_linear = nn.Linear(hidden_size, num_actions)
+        self.mean_linear.weight.data.uniform_(-init_w, init_w)
+        self.mean_linear.bias.data.uniform_(-init_w, init_w)
         
+        self.log_std_linear = nn.Linear(hidden_size, num_actions)
+        self.log_std_linear.weight.data.uniform_(-init_w, init_w)
+        self.log_std_linear.bias.data.uniform_(-init_w, init_w)
+
+        self.action_range = 10.
+        self.num_actions = num_actions
+        """
         self.epsilon = epsilon
         
         self.log_std_min = log_std_min
@@ -69,10 +87,13 @@ class PolicyNetwork(nn.Module):
         self.log_std_linear = nn.Linear(200, num_actions)
         self.log_std_linear.weight.data.uniform_(-init_w, init_w)
         self.log_std_linear.bias.data.uniform_(-init_w, init_w)
-    
+        """
     def forward(self, state, deterministic=False):
+
             x = F.relu(self.linear1(state))
             x = F.relu(self.linear2(x))
+            x = F.relu(self.linear3(x))
+            x = F.relu(self.linear4(x))
             
             mean    = self.mean_linear(x)
             
@@ -92,16 +113,21 @@ class PolicyNetwork(nn.Module):
                 action = torch.tanh(z)
                 log_prob = Normal(mean, std).log_prob(z) - torch.log(1 - action * action + self.epsilon)
                 
-            return action, mean, log_std, log_prob, std
+            return action, mean, log_std, std
     
     def get_action(self, state, deterministic=False):
         state = torch.FloatTensor(state).unsqueeze(0).to(device)
-        action,_,_,_,_ =  self.forward(state, deterministic)
-        act = action.cpu()[0][0]
-        return act
+        mean, log_std= self.forward(state)
+        std = log_std.exp()
+        
+        normal = Normal(0, 1)
+        z      = normal.sample(mean.shape).to(device)
+        action = self.action_range* torch.tanh(mean + std*z)        
+        action = torch.tanh(mean).detach().cpu().numpy()[0] if deterministic else action.detach().cpu().numpy()[0]
+        return action
         
 class ReplayBuffer:
-    def __init__(self, max_size=1000):
+    def __init__(self, max_size=100):
         self.max_size=max_size
         self.buffer = []
         self.position = 0
@@ -117,7 +143,12 @@ class ReplayBuffer:
         batch = random.sample(self.buffer, batch_size)
         state, action, reward, next_state, done = map(np.stack, zip(*batch))
         return state, action, reward, next_state, done
-    
+        
+
+    def sample_action(self,):
+        a=torch.FloatTensor(self.num_actions).uniform_(-1, 1)
+        return (self.action_range*a).numpy()
+
     def __len__(self):
         return len(self.buffer)
         
@@ -141,7 +172,7 @@ class SAC1(object):
     
     def __init__(self, env, replay_buffer, seed=0, hidden_dim=200,
         steps_per_epoch=200, epochs=1000, discount=0.99,
-        tau=1e-2, lr=1e-3, auto_alpha=True, batch_size=100, start_steps=10000,
+        tau=1e-2, lr=1e-3, auto_alpha=True, batch_size=100, start_steps=1000,
         max_ep_len=200, logger_kwargs=dict(), save_freq=1):
         
         # Set seeds
@@ -156,8 +187,8 @@ class SAC1(object):
         self.hidden_dim = hidden_dim
         
         # device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+        self.device = torch.device("cpu")
+
         # init networks
         
         # Soft Q
@@ -198,7 +229,7 @@ class SAC1(object):
         
     def get_action(self, state, deterministic=False, explore=False):
         
-        state = torch.FloatTensor(state).unsqueeze(0).to(device)
+        state = torch.FloatTensor(state.reshape(1,-1)).to(device)
         if explore:
             return self.env.action_space.sample()
         else:
@@ -217,7 +248,7 @@ class SAC1(object):
             reward     = torch.FloatTensor(reward).unsqueeze(1).to(device)
             done       = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
 
-            new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net.evaluate(state)
+            new_actions, policy_mean, policy_log_std, log_pi, *_ = self.policy_net(state)
 
             if self.auto_alpha:
                 alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
@@ -230,11 +261,7 @@ class SAC1(object):
                 alpha = 0.2 # constant used by OpenAI
 
             # Update Policy 
-            q_new_actions = torch.min(
-                self.soft_q_net1(state, new_actions), 
-                self.soft_q_net2(state, new_actions)
-            )
-
+            q_new_actions = torch.min(self.soft_q_net1(state, new_actions),self.soft_q_net2(state, new_actions))
             policy_loss = (alpha*log_pi - q_new_actions).mean()
 
             # Update Soft Q Function
@@ -276,12 +303,13 @@ class SAC1(object):
                     target_param.data * (1.0 - self.tau) + param.data * self.tau
                 )
 
-def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=200):
-
+def train(agent, steps_per_epoch=100, epochs=100, start_steps=100, max_ep_len=200):
+    state=env.reset()
     # start tracking time
     start_time = time.time()
     total_rewards = []
     avg_reward = None
+    normed_state=(env.state-env.state_lower)/(env.state_upper-env.state_lower)
     
     # set initial values
     o, r, d, ep_reward, ep_len, ep_num = agent.env.reset(), 0, False, 0, 0, 1
@@ -295,8 +323,7 @@ def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=
         a = agent.get_action(o, explore=explore)
         
         # Step the env
-        o2, r, d, _ = agent.env.step(a,NormalizedActions.normalize_action(a))
-########high ve low lazım
+        o2, r, d, _ = agent.env.step(a,normed_state)
         ep_reward += r
         ep_len += 1
 
@@ -335,10 +362,14 @@ def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=
             epoch = t // steps_per_epoch
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
+
 replay_buffer = ReplayBuffer()
 
-env = NormalizedActions(gym.make("Datcom-v1"))
+env =gym.make("Datcom-v1")
+action_dim = env.action_space.shape[0]
+state_dim  = env.observation_space.shape[0]
+
 
 agent =SAC1(env, replay_buffer)
 

@@ -12,7 +12,7 @@ import datcom_gym_env
 #env = gym.make('Datcom-v1')
      
 
-args = {'max_episode': 200,
+args = {'max_episode': 2000,
         'log_interval': 1}
 def hidden_init(layer):
     fan_in = layer.weight.data.size()[0]
@@ -363,11 +363,11 @@ SEED = 0
 OBSERVATION = 10000
 BATCH_SIZE = 32
 GAMMA = 0.99
-lr=1e-3
+lr=5e-6
 EXPLORE_NOISE = 0.1
 POLICY_FREQUENCY = 2
-for NOISE in [1e-5, 1e-4, 1e-3]:
-    for TAU in [1e-3, 5e-2, 1e-2]:
+for NOISE in [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]:
+    for TAU in [5e-3,1e-3, 5e-2, 1e-2,5e-1]:
         NOISE_CLIP = 2*NOISE
         env = gym.make(ENV)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
