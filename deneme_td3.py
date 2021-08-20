@@ -245,7 +245,7 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
     #rewards=[]
     best_avg=-2000
 
-    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}")
+    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}-tau={TAU}-policyfrq{POLICY_FREQUENCY}-")
 
     """while total_timesteps<EXPLORATION:
         if done:
@@ -363,46 +363,47 @@ SEED = 0
 OBSERVATION = 10000
 BATCH_SIZE = 32
 GAMMA = 0.99
-lr=5e-6
 EXPLORE_NOISE = 0.1
-POLICY_FREQUENCY = 2
 for NOISE in [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]:
-    for TAU in [5e-3,1e-3, 5e-2, 1e-2,5e-1]:
-        NOISE_CLIP = 2*NOISE
-        env = gym.make(ENV)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        torch.autograd.set_detect_anomaly(True)
-        # Set seeds
-        env.seed(SEED)
-        torch.manual_seed(SEED)
-        np.random.seed(SEED)
+    for TAU in [5e-3,1e-3, 5e-2, 1e-2, 5e-1]:
+        for POLICY_FREQUENCY in [1,2,3,4]:
+            for lr in [1e-5, 1e-4, 1e-3]:
 
-        state_dim = env.observation_space.shape[0]
-        action_dim = env.action_space.shape[0] 
-        max_action = float(env.action_space.high[0])
+                NOISE_CLIP = 2*NOISE
+                env = gym.make(ENV)
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                torch.autograd.set_detect_anomaly(True)
+                # Set seeds
+                env.seed(SEED)
+                torch.manual_seed(SEED)
+                np.random.seed(SEED)
 
-        policy = TD3(state_dim, action_dim, max_action, env, lr)
+                state_dim = env.observation_space.shape[0]
+                action_dim = env.action_space.shape[0] 
+                max_action = float(env.action_space.high[0])
 
-        replay_buffer = ReplayBuffer()
+                policy = TD3(state_dim, action_dim, max_action, env, lr)
 
-        #runner = Runner(env, policy, replay_buffer)
+                replay_buffer = ReplayBuffer()
 
-        total_timesteps = 0
-        timesteps_since_eval = 0
-        episode_num = 0
-        done = True
+                #runner = Runner(env, policy, replay_buffer)
 
-        observe(env, replay_buffer, OBSERVATION)
-        train(policy, NOISE, NOISE_CLIP, lr)
+                total_timesteps = 0
+                timesteps_since_eval = 0
+                episode_num = 0
+                done = True
+
+                observe(env, replay_buffer, OBSERVATION)
+                train(policy, NOISE, NOISE_CLIP, lr)
 
 
-        # Load trained policy
-        policy.load()
+                # Load trained policy
+                policy.load()
 
-        # watch the trained agent run 
-        '''
-        for i in range(10):
-            evaluate_policy(policy, env)
-        '''
+                # watch the trained agent run 
+                '''
+                for i in range(10):
+                    evaluate_policy(policy, env)
+                '''
 
-        env.close()
+                env.close()
