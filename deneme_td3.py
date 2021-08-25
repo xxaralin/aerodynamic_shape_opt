@@ -12,12 +12,9 @@ import datcom_gym_env
 #env = gym.make('Datcom-v1')
      
 
-args = {'max_episode': 800,
+args = {'max_episode': 1000,
         'log_interval': 1}
-def hidden_init(layer):
-    fan_in = layer.weight.data.size()[0]
-    lim = 1. / np.sqrt(fan_in)
-    return (-lim, lim)
+
 #networks
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action,transfer = False):
@@ -120,7 +117,7 @@ class TD3(object):
 
         return action.clip(self.env.action_space.low, self.env.action_space.high)
 
-    def train(self, replay_buffer, iterations, batch_size=100, discount=0.99,tau=0.005,policy_noise=0.2,noise_clip=0.05, policy_freq=2):
+    def train(self, replay_buffer, iterations, batch_size=100, discount=0.99,tau=0.005,policy_noise=2,noise_clip=0.05, policy_freq=2):
     #trains and updates actor and critic
         for it in range(iterations):
             #sample relay buffer
@@ -274,6 +271,7 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
       
     total_step = 0
     epoch = 0
+    
 
     for i in range(args['max_episode']):
         total_reward = 0
@@ -302,8 +300,12 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
             writer.add_scalar('States/normed_state_6', state[6], global_step=epoch)
             writer.add_scalar('States/normed_state_7', state[7], global_step=epoch)
 
-            #action = (action + 0.025*2.5066*args.exploration_noise*np.random.normal(0, args.exploration_noise, size=env.action_space.shape[0]))
-            noise = np.random.normal(0, noise_param, size=env.action_space.shape[0])
+            if(noise_bool==True):
+                noise=0.025*2.5066*noise_param*np.random.normal(0, noise_param, size=env.action_space.shape[0])
+            else:
+                noise = np.random.normal(0, noise_param, size=env.action_space.shape[0])
+            
+            
 
             writer.add_scalar('Main/noise_0', noise[0], global_step=epoch)
             writer.add_scalar('Main/noise_1', noise[1], global_step=epoch)
@@ -364,46 +366,47 @@ OBSERVATION = 1000
 BATCH_SIZE = 64
 GAMMA = 0.99
 EXPLORE_NOISE = 0.1
-for NOISE in [1e-3, 5e-3]:
+for NOISE in [1e-3,5e-3,1e-2,5e-2,1e-1]:
     for TAU in [5e-3]:
         for POLICY_FREQUENCY in [2]:
             for lr in [3e-3, 3e-4]:
+                for noise_bool in[True,False]:
 
-                NOISE_CLIP = 2*NOISE
-                env = gym.make(ENV)
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                torch.autograd.set_detect_anomaly(True)
-                # Set seeds
-                env.seed(SEED)
-                torch.manual_seed(SEED)
-                np.random.seed(SEED)
+                    NOISE_CLIP = 2*NOISE
+                    env = gym.make(ENV)
+                    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                    torch.autograd.set_detect_anomaly(True)
+                    # Set seeds
+                    env.seed(SEED)
+                    torch.manual_seed(SEED)
+                    np.random.seed(SEED)
 
-                state_dim = env.observation_space.shape[0]
-                action_dim = env.action_space.shape[0] 
-                max_action = float(env.action_space.high[0])
+                    state_dim = env.observation_space.shape[0]
+                    action_dim = env.action_space.shape[0] 
+                    max_action = float(env.action_space.high[0])
 
-                policy = TD3(state_dim, action_dim, max_action, env, lr)
+                    policy = TD3(state_dim, action_dim, max_action, env, lr)
 
-                replay_buffer = ReplayBuffer()
+                    replay_buffer = ReplayBuffer()
 
-                #runner = Runner(env, policy, replay_buffer)
+                    #runner = Runner(env, policy, replay_buffer)
 
-                total_timesteps = 0
-                timesteps_since_eval = 0
-                episode_num = 0
-                done = True
+                    total_timesteps = 0
+                    timesteps_since_eval = 0
+                    episode_num = 0
+                    done = True
 
-                observe(env, replay_buffer, OBSERVATION)
-                train(policy, NOISE, NOISE_CLIP, lr)
+                    observe(env, replay_buffer, OBSERVATION)
+                    train(policy, NOISE, NOISE_CLIP, lr)
 
 
-                # Load trained policy
-                policy.load()
+                    # Load trained policy
+                    policy.load()
 
-                # watch the trained agent run 
-                '''
-                for i in range(10):
-                    evaluate_policy(policy, env)
-                '''
+                    # watch the trained agent run 
+                    '''
+                    for i in range(10):
+                        evaluate_policy(policy, env)
+                    '''
 
-                env.close()
+                    env.close()
