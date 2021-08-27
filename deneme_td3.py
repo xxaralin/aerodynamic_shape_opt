@@ -289,7 +289,7 @@ OBSERVATION = 1000
 BATCH_SIZE = 64
 GAMMA = 0.99
 EXPLORE_NOISE = 0.1
-for bıdık in range(41,101,10):
+for bıdık in np.linspace(0.01, 1, 5):
     for NOISE in [1e-2,5e-2,1e-1]:
         for TAU in [5e-3]:
             for POLICY_FREQUENCY in [2]:

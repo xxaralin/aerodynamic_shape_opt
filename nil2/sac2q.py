@@ -328,128 +328,131 @@ parser.add_argument('--target_update_interval', type=int, default=1, metavar='N'
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N')
 parser.add_argument('--cuda', action="store_true")
 args = parser.parse_args()"""
+for policy in["deterministic","Gaussian"]:
+    for lr in[3e-3, 3e-4]:
+        for alpha in[0.01,0.2,0.4]:
+            for bıdık in[1,10,50]:
+                args = {"env_name":"Datcom-v1",
+                        "policy":policy,
+                        "eval":True,
+                        "gamma":0.99,
+                        "tau":0.005,
+                        "lr":lr,
+                        "alpha":alpha,
+                        "automatic_entropy_tuning":False,
+                        "seed":123456,
+                        "batch_size":128,
+                        "num_steps":100000,
+                        "hidden_size":200,
+                        "updates_per_step":1,
+                        "start_steps":1000,
+                        "target_update_interval":1,
+                        "replay_size":10000,
+                        "cuda":True,
+                        "bıdık":bıdık}
 
-args = {"env_name":"Datcom-v1",
-        "policy":"Gaussian",
-        "eval":True,
-        "gamma":0.99,
-        "tau":0.005,
-        "lr":0.0003,
-        "alpha":0.2,
-        "automatic_entropy_tuning":False,
-        "seed":123456,
-        "batch_size":128,
-        "num_steps":100000,
-        "hidden_size":200,
-        "updates_per_step":1,
-        "start_steps":1000,
-        "target_update_interval":1,
-        "replay_size":10000,
-        "cuda":True,
-        "bıdık":10}
+                # Environment
+                # env = NormalizedActions(gym.make(args["env_name"]))
+                env = gym.make(args["env_name"])
+                env.seed(args["seed"])
+                env.action_space.seed(args["seed"])
 
-# Environment
-# env = NormalizedActions(gym.make(args["env_name"]))
-env = gym.make(args["env_name"])
-env.seed(args["seed"])
-env.action_space.seed(args["seed"])
+                torch.manual_seed(args["seed"])
+                np.random.seed(args["seed"])
 
-torch.manual_seed(args["seed"])
-np.random.seed(args["seed"])
+                # Agent
+                agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
-# Agent
-agent = SAC(env.observation_space.shape[0], env.action_space, args)
+                #Tesnorboard
+                writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args["env_name"],
+                                                                            args["policy"], "autotune" if args["automatic_entropy_tuning"] else ""))
 
-#Tesnorboard
-writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args["env_name"],
-                                                             args["policy"], "autotune" if args["automatic_entropy_tuning"] else ""))
+                # Memory
+                memory = ReplayMemory(args["replay_size"], args["seed"])
 
-# Memory
-memory = ReplayMemory(args["replay_size"], args["seed"])
+                # Training Loop
+                total_numsteps = 0
+                updates = 0
 
-# Training Loop
-total_numsteps = 0
-updates = 0
+                for i_episode in itertools.count(1):
+                    episode_reward = 0
+                    episode_steps = 0
+                    done = False
+                    state = env.reset()
+                    normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
 
-for i_episode in itertools.count(1):
-    episode_reward = 0
-    episode_steps = 0
-    done = False
-    state = env.reset()
-    normed_state=(state-env.state_lower)/(env.state_upper-env.state_lower)
+                    while not done:
+                        if args["start_steps"] > total_numsteps:
+                            action = env.action_space.sample()  # Sample random action
+                        else:
+                            action = agent.select_action(state)  # Sample action from policy
+                        writer.add_scalar('Main/action_0', action[0], global_step=total_numsteps)
+                        writer.add_scalar('Main/action_1', action[1], global_step=total_numsteps)
+                        writer.add_scalar('Main/action_2', action[2], global_step=total_numsteps)
+                        writer.add_scalar('Main/action_3', action[3], global_step=total_numsteps)
+                        writer.add_scalar('Main/action_4', action[4], global_step=total_numsteps)
+                        writer.add_scalar('Main/action_5', action[5], global_step=total_numsteps)
+                        writer.add_scalar('Main/action_6', action[6], global_step=total_numsteps)
+                        writer.add_scalar('Main/action_7', action[7], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_0', state[0], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_1', state[1], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_2', state[2], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_3', state[3], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_4', state[4], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_5', state[5], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_6', state[6], global_step=total_numsteps)
+                        writer.add_scalar('States/normed_state_7', state[7], global_step=total_numsteps)
+                        
+                        if len(memory) > args["batch_size"]:
+                            # Number of updates per step in environment
+                            for i in range(args["updates_per_step"]):
+                                # Update parameters of all the networks
+                                critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory, args["batch_size"], updates)
+                                """
+                                writer.add_scalar('loss/critic_1', critic_1_loss, updates)
+                                writer.add_scalar('loss/critic_2', critic_2_loss, updates)
+                                writer.add_scalar('loss/policy', policy_loss, updates)
+                                writer.add_scalar('loss/entropy_loss', ent_loss, updates)
+                                writer.add_scalar('entropy_temprature/alpha', alpha, updates)"""
+                                updates += 1
+                        
+                        next_state, reward, done, _ = env.step(action,normed_state,args["bıdık"]) # Step
+                        next_state = (next_state - env.state_lower ) / (env.state_upper-env.state_lower)
+                        episode_steps += 1
+                        total_numsteps += 1
+                        episode_reward += reward
 
-    while not done:
-        if args["start_steps"] > total_numsteps:
-            action = env.action_space.sample()  # Sample random action
-        else:
-            action = agent.select_action(state)  # Sample action from policy
-        writer.add_scalar('Main/action_0', action[0], global_step=total_numsteps)
-        writer.add_scalar('Main/action_1', action[1], global_step=total_numsteps)
-        writer.add_scalar('Main/action_2', action[2], global_step=total_numsteps)
-        writer.add_scalar('Main/action_3', action[3], global_step=total_numsteps)
-        writer.add_scalar('Main/action_4', action[4], global_step=total_numsteps)
-        writer.add_scalar('Main/action_5', action[5], global_step=total_numsteps)
-        writer.add_scalar('Main/action_6', action[6], global_step=total_numsteps)
-        writer.add_scalar('Main/action_7', action[7], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_0', state[0], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_1', state[1], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_2', state[2], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_3', state[3], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_4', state[4], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_5', state[5], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_6', state[6], global_step=total_numsteps)
-        writer.add_scalar('States/normed_state_7', state[7], global_step=total_numsteps)
-        
-        if len(memory) > args["batch_size"]:
-            # Number of updates per step in environment
-            for i in range(args["updates_per_step"]):
-                # Update parameters of all the networks
-                critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory, args["batch_size"], updates)
-                """
-                writer.add_scalar('loss/critic_1', critic_1_loss, updates)
-                writer.add_scalar('loss/critic_2', critic_2_loss, updates)
-                writer.add_scalar('loss/policy', policy_loss, updates)
-                writer.add_scalar('loss/entropy_loss', ent_loss, updates)
-                writer.add_scalar('entropy_temprature/alpha', alpha, updates)"""
-                updates += 1
-        
-        next_state, reward, done, _ = env.step(action,normed_state,args["bıdık"]) # Step
-        next_state = (next_state - env.state_lower ) / (env.state_upper-env.state_lower)
-        episode_steps += 1
-        total_numsteps += 1
-        episode_reward += reward
+                        # Ignore the "done" signal if it comes from hitting the time horizon.
+                        # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
+                        #mask = 1 if episode_steps == env._max_episode_steps else float(not done)
 
-        # Ignore the "done" signal if it comes from hitting the time horizon.
-        # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
-        #mask = 1 if episode_steps == env._max_episode_steps else float(not done)
+                        memory.push(state, action, reward, next_state, float(not done)) # Append transition to memory
+                        writer.add_scalar('Main/step_reward', reward, global_step=total_numsteps)
+                        writer.add_scalar('Main/CL_CD', env.cl_cd, global_step=total_numsteps)
+                        writer.add_scalar('States/XLE1', env.XLE1, global_step=total_numsteps)
+                        writer.add_scalar('States/XLE2', env.XLE2, global_step=total_numsteps)
+                        writer.add_scalar('States/CHORD1_1', env.CHORD1_1, global_step=total_numsteps)
+                        writer.add_scalar('States/CHORD1_2', env.CHORD1_2, global_step=total_numsteps)
+                        writer.add_scalar('States/CHORD2_1', env.CHORD2_1, global_step=total_numsteps)
+                        writer.add_scalar('States/CHORD2_2', env.CHORD2_2, global_step=total_numsteps)
+                        writer.add_scalar('States/SSPAN1_2', env.SSPAN1_2, global_step=total_numsteps)
+                        writer.add_scalar('States/SSPAN2_2', env.SSPAN2_2, global_step=total_numsteps)
+                        state = next_state
+                        if done or episode_steps> 20:
+                            break
 
-        memory.push(state, action, reward, next_state, float(not done)) # Append transition to memory
-        writer.add_scalar('Main/step_reward', reward, global_step=total_numsteps)
-        writer.add_scalar('Main/CL_CD', env.cl_cd, global_step=total_numsteps)
-        writer.add_scalar('States/XLE1', env.XLE1, global_step=total_numsteps)
-        writer.add_scalar('States/XLE2', env.XLE2, global_step=total_numsteps)
-        writer.add_scalar('States/CHORD1_1', env.CHORD1_1, global_step=total_numsteps)
-        writer.add_scalar('States/CHORD1_2', env.CHORD1_2, global_step=total_numsteps)
-        writer.add_scalar('States/CHORD2_1', env.CHORD2_1, global_step=total_numsteps)
-        writer.add_scalar('States/CHORD2_2', env.CHORD2_2, global_step=total_numsteps)
-        writer.add_scalar('States/SSPAN1_2', env.SSPAN1_2, global_step=total_numsteps)
-        writer.add_scalar('States/SSPAN2_2', env.SSPAN2_2, global_step=total_numsteps)
-        state = next_state
-        if done or episode_steps> 20:
-            break
+                    if total_numsteps > args["num_steps"]:
+                        print(total_numsteps ,args["num_steps"])
+                        break
 
-    if total_numsteps > args["num_steps"]:
-        print(total_numsteps ,args["num_steps"])
-        break
+                    writer.add_scalar('reward/train', episode_reward, i_episode)
+                    print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
 
-    writer.add_scalar('reward/train', episode_reward, i_episode)
-    print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
-
-    writer.add_scalar('Main/episode_reward', episode_reward, global_step=i_episode)
-    writer.add_scalar('Main/episode_steps', episode_steps, global_step=i_episode)
-    writer.add_scalar('Main/episode_CL_CD', env.cl_cd, global_step=i_episode)
+                    writer.add_scalar('Main/episode_reward', episode_reward, global_step=i_episode)
+                    writer.add_scalar('Main/episode_steps', episode_steps, global_step=i_episode)
+                    writer.add_scalar('Main/episode_CL_CD', env.cl_cd, global_step=i_episode)
 
 
 
-env.close()
+                env.close()
 
