@@ -165,49 +165,6 @@ class TD3(object):
         self.actor.load_state_dict(torch.load('%s%s_actor.pth'%(directory, filename)))
         self.critic.load_state_dict(torch.load('%s%s_critic.pth'%(directory, filename)))
 
-class Runner():
-    def __init__(self, env,agent,replay_buffer):
-        self.env=env
-        self.agent=agent
-        self.replay_buffer=replay_buffer
-        self.obs=env.reset()
-        self.done=False
-
-    def next_step(self, noise=0.1):
-        noise1=np.random.normal(0, noise, size=self.env.action_space.shape[0])
-        action=self.agent.select_action(np.array(self.obs))+noise1
-        normed_state=(self.obs-env.state_lower)/(env.state_upper-env.state_lower)
-        new_obs, reward, done, _=self.env.step(action,normed_state)
-        done_bool=float (done)
-
-        replay_buffer.add((self.obs, new_obs, action, reward, done_bool))
-        self.obs=new_obs
-        if done:
-            self.obs=self.env.reset()
-            done=False
-
-            return reward, True
-        return reward, done
-
-#evaluate
-def evaluate_policy(policy, env, eval_episodes=100, render=False):
-    avg_reward=0
-    for i in range(eval_episodes):
-        obs=env.reset()
-        done=False
-        while not done:
-            if render:
-                env.render()
-            action=policy.select_action(np.array(obs))
-            normed_state=(obs-env.state_lower)/(env.state_upper-env.state_lower)
-            obs, reward, done, _=env.step(action,normed_state)
-            avg_reward+=reward
-    avg_reward/=eval_episodes
-
-    print("\n---------------------------------------")
-    print("Evaluation over {:d} episodes: {:f}" .format(eval_episodes, avg_reward))
-    print("---------------------------------------")
-    return avg_reward
 
     #observation-runs episodes fills buffer
 def observe(env, replay_buffer, observation_steps):
@@ -218,7 +175,7 @@ def observe(env, replay_buffer, observation_steps):
 
     while time_steps< observation_steps:
         action=env.action_space.sample()
-        new_obs, reward, done, _=env.step(action,obs)
+        new_obs, reward, done, _=env.step(action,obs,bıdık)
         new_obs=(new_obs-env.state_lower)/(env.state_upper-env.state_lower)
         replay_buffer.add((obs,new_obs,action, reward, done))
         obs=new_obs
@@ -231,44 +188,9 @@ def observe(env, replay_buffer, observation_steps):
         sys.stdout.flush()
 
 def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for exploration
-    #total_timesteps=0
-    timesteps_since_eval=0
-    episode_num=0
-    episode_reward=0
-    episode_timesteps=0
+
     done=False 
-    obs = env.reset()
-    evaluations=[]
-    #rewards=[]
-    best_avg=-2000
-
-    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}-tau={TAU}-policyfrq{POLICY_FREQUENCY}-")
-
-    """while total_timesteps<EXPLORATION:
-        if done:
-            if total_timesteps!=0:
-
-
-                 if timesteps_since_eval>=EVAL_FREQUENCY:
-                    timesteps_since_eval%=EVAL_FREQUENCY
-                    eval_reward=evaluate_policy(agent, test_env)
-                    evaluations.append(avg_reward)
-                    writer.add_scalar("eval_reward", eval_reward,total_timesteps)
-
-                    
-
-                episode_reward=0
-                episode_timesteps=0
-                episode_num+=1
-        reward, done=runner.next_step(episode_timesteps) 
-        episode_reward+=reward  
-
-        episode_timesteps+=1
-        total_timesteps+=1
-        timesteps_since_eval+=1
-
-"""
-      
+    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}-reward_bıdık{bıdık}-")
     total_step = 0
     epoch = 0
     
@@ -299,11 +221,12 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
             writer.add_scalar('States/normed_state_5', state[5], global_step=epoch)
             writer.add_scalar('States/normed_state_6', state[6], global_step=epoch)
             writer.add_scalar('States/normed_state_7', state[7], global_step=epoch)
-
+            """
             if(noise_bool==True):
                 noise=0.025*2.5066*noise_param*np.random.normal(0, noise_param, size=env.action_space.shape[0])
             else:
-                noise = np.random.normal(0, noise_param, size=env.action_space.shape[0])
+               """
+            noise = np.random.normal(0, noise_param, size=env.action_space.shape[0])
             
             
 
@@ -317,7 +240,7 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
             writer.add_scalar('Main/noise_7', noise[7], global_step=epoch)
 
             action = action + noise 
-            next_state, reward, done, info = env.step(action,state)
+            next_state, reward, done, info = env.step(action,state,bıdık)
             next_state = (next_state - env.state_lower ) / (env.state_upper-env.state_lower)
             replay_buffer.add((state, next_state, action, reward, np.float(done)))
 
@@ -366,47 +289,38 @@ OBSERVATION = 1000
 BATCH_SIZE = 64
 GAMMA = 0.99
 EXPLORE_NOISE = 0.1
-for NOISE in [1e-3,5e-3,1e-2,5e-2,1e-1]:
-    for TAU in [5e-3]:
-        for POLICY_FREQUENCY in [2]:
-            for lr in [3e-3, 3e-4]:
-                for noise_bool in[True,False]:
+for bıdık in range(41,101,10):
+    for NOISE in [1e-2,5e-2,1e-1]:
+        for TAU in [5e-3]:
+            for POLICY_FREQUENCY in [2]:
+                for lr in [3e-3, 3e-4]:
+                    for noise_bool in[True]:
 
-                    NOISE_CLIP = 2*NOISE
-                    env = gym.make(ENV)
-                    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                    torch.autograd.set_detect_anomaly(True)
-                    # Set seeds
-                    env.seed(SEED)
-                    torch.manual_seed(SEED)
-                    np.random.seed(SEED)
+                        NOISE_CLIP = 2*NOISE
+                        env = gym.make(ENV)
+                        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                        torch.autograd.set_detect_anomaly(True)
+                        # Set seeds
+                        env.seed(SEED)
+                        torch.manual_seed(SEED)
+                        np.random.seed(SEED)
 
-                    state_dim = env.observation_space.shape[0]
-                    action_dim = env.action_space.shape[0] 
-                    max_action = float(env.action_space.high[0])
+                        state_dim = env.observation_space.shape[0]
+                        action_dim = env.action_space.shape[0] 
+                        max_action = float(env.action_space.high[0])
 
-                    policy = TD3(state_dim, action_dim, max_action, env, lr)
+                        policy = TD3(state_dim, action_dim, max_action, env, lr)
 
-                    replay_buffer = ReplayBuffer()
+                        replay_buffer = ReplayBuffer()
 
-                    #runner = Runner(env, policy, replay_buffer)
+                        total_timesteps = 0
+                        timesteps_since_eval = 0
+                        episode_num = 0
+                        done = True
 
-                    total_timesteps = 0
-                    timesteps_since_eval = 0
-                    episode_num = 0
-                    done = True
+                        observe(env, replay_buffer, OBSERVATION)
+                        train(policy, NOISE, NOISE_CLIP, lr)
 
-                    observe(env, replay_buffer, OBSERVATION)
-                    train(policy, NOISE, NOISE_CLIP, lr)
-
-
-                    # Load trained policy
-                    policy.load()
-
-                    # watch the trained agent run 
-                    '''
-                    for i in range(10):
-                        evaluate_policy(policy, env)
-                    '''
-
-                    env.close()
+                        policy.load()
+                        
+                        env.close()

@@ -16,7 +16,7 @@ import datcom_gym_env
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cpu")
 
-class ValueNetwork(nn.Module):
+"""class ValueNetwork(nn.Module):
     def __init__(self, state_dim, hidden_dim, init_w=3e-3):
         super(ValueNetwork, self).__init__()
         
@@ -31,7 +31,7 @@ class ValueNetwork(nn.Module):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         x = self.linear3(x)
-        return x
+        return x"""
 
 class SoftQNetwork(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_size=[400,300], init_w=3e-3):
@@ -91,7 +91,7 @@ class PolicyNetwork(nn.Module):
             # assumes actions have been normalized to (0,1)
             normal = Normal(0, 1)
             z = mean + std * normal.sample().requires_grad_()
-            action = torch.tanh(z)
+            action = torch.tanh(mean + std * normal.sample().requires_grad_())
             log_prob = Normal(mean, std).log_prob(z) - torch.log(1 - action * action + self.epsilon)
             
         return action, mean, log_std, log_prob, std
@@ -100,7 +100,7 @@ class PolicyNetwork(nn.Module):
         state = torch.FloatTensor(state).unsqueeze(0).to(device)
         action,_,_,_,_ =  self.forward(state, deterministic)
         act = action.cpu()[0][0]
-        return act
+        return act.clip(torch.FloatTensor(env.action_space.low),torch.FloatTensor( env.action_space.high))
     """
     def forward(self, state):
         x = F.relu(self.linear1(state))
@@ -143,13 +143,13 @@ class ReplayBuffer(object):
         ind=np.random.randint(0,len(self.storage),size=batch_size) #random number within the range
         states,actions,next_states,rewards,dones=[],[],[],[],[]
         for i in ind:
-            s,a,s_,r,d=self.storage[i]
+            s,a,r,s_,d=self.storage[i]
             states.append(np.array(s,copy=False))
             actions.append(np.array(a,copy=False))
             next_states.append(np.array(s_,copy=False))
             rewards.append(np.array(r,copy=False))
             dones.append(np.array(d,copy=False))
-        return np.array(states),np.array(actions),np.array(next_states),np.array(rewards).reshape(-1,1),np.array(dones).reshape(-1,1)
+        return np.array(states),np.array(actions),np.array(rewards).reshape(-1,1),np.array(next_states),np.array(dones).reshape(-1,1)
   
 
 class SAC(object):
@@ -161,7 +161,7 @@ class SAC(object):
         
         # Set seeds
         self.env = env
-        obs=env.reset()
+        self.obs=env.reset()
         self.env.seed(seed)
         torch.manual_seed(seed)
         np.random.seed(seed)
@@ -212,29 +212,22 @@ class SAC(object):
         self.discount = discount
         self.batch_size = batch_size
         self.tau = tau
-        
-        """  
-    def select_action(self, state):#pretty self explanatory
-        state=torch.FloatTensor(state.reshape(1,-1)).to(device)
-
-        action=self.agent(state)
-        action=action.cpu().data.numpy().flatten()
-        return action.clip(self.env.action_space.low, self.env.action_space.high)
-        """  
-    def get_action(self, state, explore=False):
+  
+    def get_action(self, state,deterministic=False, explore=False):
         
         state = torch.FloatTensor(state).unsqueeze(0).to(device)
         if explore:
             return self.env.action_space.sample()
         else:
-            action  = self.policy_net.get_action(state).detach()
+            action  = self.policy_net.get_action(state,deterministic).detach()
             return action.numpy()
         
-    def update(self, iterations, batch_size = 100):
+    def update(self, iterations, batch_size = 103):
         
         for _ in range(0,iterations):
         
             state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
+            print(action.shape,reward.shape,state.shape,next_state.shape)
 
             state      = torch.FloatTensor(state).to(device)
             next_state = torch.FloatTensor(next_state).to(device)
@@ -261,6 +254,7 @@ class SAC(object):
             )
 
             policy_loss = (alpha*log_pi - q_new_actions).mean()
+            print((alpha*log_pi - q_new_actions).shape,policy_loss,q_new_actions.shape)
 
             # Update Soft Q Function
             q1_pred = self.soft_q_net1(state, action)
@@ -300,24 +294,41 @@ class SAC(object):
                 target_param.data.copy_(
                     target_param.data * (1.0 - self.tau) + param.data * self.tau
                 )
-def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=200):
+def train(agent, steps_per_epoch=100, epochs=100, start_steps=100, max_ep_len=20):
+
+    writer=SummaryWriter(comment=f" ")
     
     # start tracking time
     start_time = time.time()
-    total_rewards = []
-    avg_reward = None
     
     obs, r, d, ep_reward, ep_len, ep_num = env.reset(), 0, False, 0, 0, 1
     
     # track total steps
     total_steps = steps_per_epoch * epochs
     
-    for t in range(1,total_steps):
+    for t in range(0,total_steps):
         
         explore = t < start_steps
-        a = agent.get_action(obs)
-        new_obs, r, d, _=env.step(a,obs)
-        normed_state=(agent.obs-agent.state_lower)/(agent.state_upper-agent.state_lower)
+        a = agent.get_action(obs,True,explore)
+        normed_state=(agent.obs-env.state_lower)/(env.state_upper-env.state_lower)
+        
+
+        writer.add_scalar('Main/action_0', a[0], global_step=t)
+        writer.add_scalar('Main/action_1', a[1], global_step=t)
+        writer.add_scalar('Main/action_2', a[2], global_step=t)
+        writer.add_scalar('Main/action_3', a[3], global_step=t)
+        writer.add_scalar('Main/action_4', a[4], global_step=t)
+        writer.add_scalar('Main/action_5', a[5], global_step=t)
+        writer.add_scalar('Main/action_6', a[6], global_step=t)
+        writer.add_scalar('Main/action_7', a[7], global_step=t)
+        writer.add_scalar('States/normed_state_0', normed_state[0], global_step=t)
+        writer.add_scalar('States/normed_state_1', normed_state[1], global_step=t)
+        writer.add_scalar('States/normed_state_2', normed_state[2], global_step=t)
+        writer.add_scalar('States/normed_state_3', normed_state[3], global_step=t)
+        writer.add_scalar('States/normed_state_4', normed_state[4], global_step=t)
+        writer.add_scalar('States/normed_state_5', normed_state[5], global_step=t)
+        writer.add_scalar('States/normed_state_6', normed_state[6], global_step=t)
+        writer.add_scalar('States/normed_state_7', normed_state[7], global_step=t)
         
 ###        # Step the env
         new_obs, r, d, _ = env.step(a,normed_state)
@@ -325,8 +336,18 @@ def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=
         ep_len += 1
 
         d = False if ep_len == max_ep_len else d
-        replay_buffer.add(obs, a, r, new_obs, d)
+        replay_buffer.add((obs, a, r, new_obs, d))
         obs = new_obs
+        writer.add_scalar('Main/step_reward', r, global_step=t)
+        writer.add_scalar('Main/CL_CD', env.cl_cd, global_step=t)
+        writer.add_scalar('States/XLE1', env.XLE1, global_step=t)
+        writer.add_scalar('States/XLE2', env.XLE2, global_step=t)
+        writer.add_scalar('States/CHORD1_1', env.CHORD1_1, global_step=t)
+        writer.add_scalar('States/CHORD1_2', env.CHORD1_2, global_step=t)
+        writer.add_scalar('States/CHORD2_1', env.CHORD2_1, global_step=t)
+        writer.add_scalar('States/CHORD2_2', env.CHORD2_2, global_step=t)
+        writer.add_scalar('States/SSPAN1_2', env.SSPAN1_2, global_step=t)
+        writer.add_scalar('States/SSPAN2_2', env.SSPAN2_2, global_step=t)
         
         if d or (ep_len == max_ep_len):
         
@@ -334,11 +355,7 @@ def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=
             if not explore:
                 agent.update(ep_len)
             
-            # log progress
-            total_rewards.append(ep_reward)
-            avg_reward = np.mean(total_rewards[-100:])
-            
-            print("Steps:{} Episode:{} Reward:{} Avg Reward:{}".format(t, ep_num, ep_reward, avg_reward))
+            print("Steps:{} Episode:{} Reward:{} ".format(t, ep_num, ep_reward))
 #             logger.store(LossPi=outs[0], LossQ1=outs[1], LossQ2=outs[2],
 #                          LossV=outs[3], Q1Vals=outs[4], Q2Vals=outs[5],
 #                          VVals=outs[6], LogPi=outs[7])
@@ -347,20 +364,12 @@ def train(agent, steps_per_epoch=1000, epochs=100, start_steps=1000, max_ep_len=
             obs, r, d, ep_reward, ep_len = env.reset(), 0, False, 0, 0
             ep_num += 1
 
-        # End of epoch wrap-up
-        if t > 0 and t % steps_per_epoch == 0:
-            epoch = t // steps_per_epoch
-
-            # TODO: Save Model
-
-            # TODO: Test
-
-            # TODO: Log Epoch Results
 
 replay_buffer = ReplayBuffer()
 
 env = gym.make("Datcom-v1")
 hidden_dim=200
 agent = SAC(env, replay_buffer)
+train(agent) 
 
-train(agent)
+env.close()
