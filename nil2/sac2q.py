@@ -328,10 +328,15 @@ parser.add_argument('--target_update_interval', type=int, default=1, metavar='N'
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N')
 parser.add_argument('--cuda', action="store_true")
 args = parser.parse_args()"""
-for policy in["deterministic","Gaussian"]:
+"""for policy in["deterministic","Gaussian"]:
     for lr in[3e-3, 3e-4]:
         for alpha in[0.01,0.2,0.4]:
             for bıdık in[1,10,50]:
+"""
+for policy in["deterministic","Gaussian"]:
+    for lr in[3e-3]:
+        for alpha in[0.01,0.2,0.4]:
+            for bıdık in[0.5,10,50]:
                 args = {"env_name":"Datcom-v1",
                         "policy":policy,
                         "eval":True,
@@ -342,10 +347,10 @@ for policy in["deterministic","Gaussian"]:
                         "automatic_entropy_tuning":False,
                         "seed":123456,
                         "batch_size":128,
-                        "num_steps":100000,
+                        "num_steps":40000,
                         "hidden_size":200,
                         "updates_per_step":1,
-                        "start_steps":1000,
+                        "start_steps":2000,
                         "target_update_interval":1,
                         "replay_size":10000,
                         "cuda":True,
@@ -364,9 +369,7 @@ for policy in["deterministic","Gaussian"]:
                 agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
                 #Tesnorboard
-                writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args["env_name"],
-                                                                            args["policy"], "autotune" if args["automatic_entropy_tuning"] else ""))
-
+                writer = SummaryWriter(comment=f"-policy={policy}-lr={lr}-alpha{alpha}-bıdık{bıdık}")       
                 # Memory
                 memory = ReplayMemory(args["replay_size"], args["seed"])
 

@@ -29,7 +29,7 @@ class Actor(nn.Module):
     def forward(self,x):
         x=F.relu(self.l1(x))
         x=F.relu(self.l2(x))
-        x=F.tanh(self.l3(x))*self.max_action
+        x=torch.tanh(self.l3(x))*self.max_action
 
         return x
         
@@ -142,7 +142,7 @@ class TD3(object):
             current_Q1, current_Q2=self.critic(state, action)
 
             #critic loss
-            critic_loss=F.mse_loss(current_Q1,target_Q)+F.mse_loss(current_Q2,target_Q)
+            critic_loss=(F.mse_loss(current_Q1,target_Q)+F.mse_loss(current_Q2,target_Q))
 
             #optimize critic
             self.critic_optimizer.zero_grad()
@@ -187,10 +187,10 @@ def observe(env, replay_buffer, observation_steps):
         print("\rPopulating Buffer {}/{}.".format(time_steps, observation_steps), end="")
         sys.stdout.flush()
 
-def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for exploration
+def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=3e-3):#train for exploration
 
     done=False 
-    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}-reward_bıdık{bıdık}-")
+    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}-reward_bıdık{bıdık}-actor_loss=-,crit_loss- ")
     total_step = 0
     epoch = 0
     
@@ -242,7 +242,7 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=1e-3):#train for ex
             action = action + noise 
             next_state, reward, done, info = env.step(action,state,bıdık)
             next_state = (next_state - env.state_lower ) / (env.state_upper-env.state_lower)
-            replay_buffer.add((state, next_state, action, reward, np.float(done)))
+            replay_buffer.add((state, next_state, action, reward, float(done)))
 
             state = next_state
             
@@ -289,11 +289,12 @@ OBSERVATION = 1000
 BATCH_SIZE = 64
 GAMMA = 0.99
 EXPLORE_NOISE = 0.1
-for bıdık in np.linspace(0.01, 1, 5):
-    for NOISE in [1e-2,5e-2,1e-1]:
+for bıdık in [0.1,0.5,1]:
+#for bıdık in np.linspace(0.01, 1, 5):
+    for NOISE in [0.1,0.05,0.01]:#,5e-2,1e-1
         for TAU in [5e-3]:
             for POLICY_FREQUENCY in [2]:
-                for lr in [3e-3, 3e-4]:
+                for lr in [3e-3]:#, 3e-4
                     for noise_bool in[True]:
 
                         NOISE_CLIP = 2*NOISE
