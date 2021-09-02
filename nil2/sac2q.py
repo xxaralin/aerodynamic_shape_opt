@@ -18,8 +18,8 @@ from torch.optim import Adam
 from utils import soft_update, hard_update
 import itertools
 
-LOG_SIG_MAX = 2
-LOG_SIG_MIN = -20
+LOG_SIG_MAX = 20
+LOG_SIG_MIN = -2
 epsilon = 1e-6
 
 # Initialize Policy weights
@@ -33,16 +33,18 @@ class ValueNetwork(nn.Module):
     def __init__(self, num_inputs, hidden_dim):
         super(ValueNetwork, self).__init__()
 
-        self.linear1 = nn.Linear(num_inputs, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear3 = nn.Linear(hidden_dim, 1)
+        self.linear1 = nn.Linear(num_inputs, 50)
+        self.linear2 = nn.Linear(50, 100)
+        self.linear3 = nn.Linear(100, 200)
+        self.linear4 = nn.Linear(200,1)
 
         self.apply(weights_init_)
 
     def forward(self, state):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
-        x = self.linear3(x)
+        x = F.relu(self.linear3(x))
+        x = self.linear4(x)
         return x
 
 
@@ -51,14 +53,18 @@ class QNetwork(nn.Module):
         super(QNetwork, self).__init__()
 
         # Q1 architecture
-        self.linear1 = nn.Linear(num_inputs + num_actions, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear3 = nn.Linear(hidden_dim, 1)
+        self.linear1 = nn.Linear(num_inputs + num_actions, 50)
+        self.linear2 = nn.Linear(50, 100)
+        self.linear3 = nn.Linear(100, 200)
+        self.linear4 = nn.Linear(200,1)
+
 
         # Q2 architecture
-        self.linear4 = nn.Linear(num_inputs + num_actions, hidden_dim)
-        self.linear5 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear6 = nn.Linear(hidden_dim, 1)
+        self.linear5 = nn.Linear(num_inputs + num_actions, 50)
+        self.linear6 = nn.Linear(50, 100)
+        self.linear7 = nn.Linear(100, 200)
+        self.linear8 = nn.Linear(200,1)
+
 
         self.apply(weights_init_)
 
@@ -67,11 +73,13 @@ class QNetwork(nn.Module):
         
         x1 = F.relu(self.linear1(xu))
         x1 = F.relu(self.linear2(x1))
-        x1 = self.linear3(x1)
+        x1 = F.relu(self.linear3(x1))
+        x1 = self.linear4(x1)
 
-        x2 = F.relu(self.linear4(xu))
-        x2 = F.relu(self.linear5(x2))
-        x2 = self.linear6(x2)
+        x2 = F.relu(self.linear5(xu))
+        x2 = F.relu(self.linear6(x2))
+        x2 = F.relu(self.linear7(x2))
+        x2 = self.linear8(x2)
 
         return x1, x2
 
@@ -335,22 +343,22 @@ args = parser.parse_args()"""
 """
 for policy in["deterministic","Gaussian"]:
     for lr in[3e-3]:
-        for alpha in[0.01,0.2,0.4]:
-            for bıdık in[0.5,10,50]:
+        for gamma in[0.50, 0.70,0.99]:
+            for bıdık in[0.5]:
                 args = {"env_name":"Datcom-v1",
                         "policy":policy,
                         "eval":True,
-                        "gamma":0.99,
+                        "gamma":0.50,
                         "tau":0.005,
                         "lr":lr,
-                        "alpha":alpha,
+                        "alpha":0.01,
                         "automatic_entropy_tuning":False,
                         "seed":123456,
                         "batch_size":128,
-                        "num_steps":40000,
+                        "num_steps":50000,
                         "hidden_size":200,
                         "updates_per_step":1,
-                        "start_steps":2000,
+                        "start_steps":5000,
                         "target_update_interval":1,
                         "replay_size":10000,
                         "cuda":True,
@@ -369,7 +377,7 @@ for policy in["deterministic","Gaussian"]:
                 agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
                 #Tesnorboard
-                writer = SummaryWriter(comment=f"-policy={policy}-lr={lr}-alpha{alpha}-bıdık{bıdık}")       
+                writer = SummaryWriter(comment=f"-policy={policy}-lr={lr}-alpha0.01-bıdık{bıdık}-4layer(200-100-50-1)-gamma{gamma}")       
                 # Memory
                 memory = ReplayMemory(args["replay_size"], args["seed"])
 
@@ -441,7 +449,7 @@ for policy in["deterministic","Gaussian"]:
                         writer.add_scalar('States/SSPAN1_2', env.SSPAN1_2, global_step=total_numsteps)
                         writer.add_scalar('States/SSPAN2_2', env.SSPAN2_2, global_step=total_numsteps)
                         state = next_state
-                        if done or episode_steps> 20:
+                        if done or episode_steps> 50:
                             break
 
                     if total_numsteps > args["num_steps"]:

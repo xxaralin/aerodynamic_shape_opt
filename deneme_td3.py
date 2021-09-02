@@ -12,7 +12,7 @@ import datcom_gym_env
 #env = gym.make('Datcom-v1')
      
 
-args = {'max_episode': 1000,
+args = {'max_episode': 2000,
         'log_interval': 1}
 
 #networks
@@ -22,8 +22,8 @@ class Actor(nn.Module):
         self.action_size = 5
 
         self.l1=nn.Linear(state_dim,200)
-        self.l2=nn.Linear(200,200)
-        self.l3=nn.Linear(200,action_dim)
+        self.l2=nn.Linear(200,300)
+        self.l3=nn.Linear(300,action_dim)
         self.max_action=max_action
 
     def forward(self,x):
@@ -39,13 +39,13 @@ class Critic(nn.Module):
 
         #Q1
         self.l1=nn.Linear(state_dim + action_dim,200)
-        self.l2=nn.Linear(200,200)
-        self.l3=nn.Linear(200,1)
+        self.l2=nn.Linear(200,300)
+        self.l3=nn.Linear(300,1)
 
         #Q2
         self.l4=nn.Linear(state_dim + action_dim,200)
-        self.l5=nn.Linear(200,200)
-        self.l6=nn.Linear(200,1)
+        self.l5=nn.Linear(200,300)
+        self.l6=nn.Linear(300,1)
 
     def forward(self, x, u):
         xu = torch.cat([x, u], 1)
@@ -190,7 +190,7 @@ def observe(env, replay_buffer, observation_steps):
 def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=3e-3):#train for exploration
 
     done=False 
-    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}-reward_bıdık{bıdık}-actor_loss=-,crit_loss- ")
+    writer=SummaryWriter(comment=f"-noise={noise_param}-lr={lr}-reward_bıdık{bıdık}- 200-300")
     total_step = 0
     epoch = 0
     
@@ -286,12 +286,11 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=3e-3):#train for ex
 ENV = "Datcom-v1"
 SEED = 0
 OBSERVATION = 1000
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 GAMMA = 0.99
-EXPLORE_NOISE = 0.1
-for bıdık in [0.1,0.5,1]:
-#for bıdık in np.linspace(0.01, 1, 5):
-    for NOISE in [0.1,0.05,0.01]:#,5e-2,1e-1
+EXPLORE_NOISE = 0.2
+for bıdık in [0.01,0.05]:
+    for NOISE in [0.01,0.05]:#,5e-2,1e-1
         for TAU in [5e-3]:
             for POLICY_FREQUENCY in [2]:
                 for lr in [3e-3]:#, 3e-4
