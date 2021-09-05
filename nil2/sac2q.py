@@ -1,4 +1,3 @@
-
 import math
 import random
 import sys
@@ -29,7 +28,7 @@ def weights_init_(m):
         torch.nn.init.constant_(m.bias, 0)
 
 
-class ValueNetwork(nn.Module):
+class ValueNetwork(nn.Module):#başta 3 layer ve 200er nöron vardı deneme yaparken biraz değiştirdim
     def __init__(self, num_inputs, hidden_dim):
         super(ValueNetwork, self).__init__()
 
@@ -48,24 +47,19 @@ class ValueNetwork(nn.Module):
         return x
 
 
-class QNetwork(nn.Module):
+class QNetwork(nn.Module):#burdaki kritiklerde de 3 layer ve200er nöron vardı bunları değiştirdim
     def __init__(self, num_inputs, num_actions, hidden_dim):
         super(QNetwork, self).__init__()
-
         # Q1 architecture
         self.linear1 = nn.Linear(num_inputs + num_actions, 50)
         self.linear2 = nn.Linear(50, 100)
         self.linear3 = nn.Linear(100, 200)
         self.linear4 = nn.Linear(200,1)
-
-
         # Q2 architecture
         self.linear5 = nn.Linear(num_inputs + num_actions, 50)
         self.linear6 = nn.Linear(50, 100)
         self.linear7 = nn.Linear(100, 200)
         self.linear8 = nn.Linear(200,1)
-
-
         self.apply(weights_init_)
 
     def forward(self, state, action):
@@ -218,7 +212,6 @@ class SAC(object):
         hard_update(self.critic_target, self.critic)
 
         if self.policy_type == "Gaussian":
-            # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self.automatic_entropy_tuning is True:
                 self.target_entropy = -torch.prod(torch.Tensor(action_space.shape).to(self.device)).item()
                 self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
@@ -316,8 +309,9 @@ class SAC(object):
         if critic_path is not None:
             self.critic.load_state_dict(torch.load(critic_path))
 
-
-"""parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
+#argparse kütüphanesi sorun çıkardığı için bu argümanları args arrayine aldım
+"""
+parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
 parser.add_argument('--env-name', default="Datcom-v1")
 parser.add_argument('--policy', default="Gaussian")
 parser.add_argument('--eval', type=bool, default=True)
@@ -341,17 +335,17 @@ args = parser.parse_args()"""
         for alpha in[0.01,0.2,0.4]:
             for bıdık in[1,10,50]:
 """
-for policy in["deterministic","Gaussian"]:
+for policy in["deterministic","Gaussian"]: #iki versiyonu da denedim gaussian daha iyi sonuçlar verdi
     for lr in[3e-3]:
-        for gamma in[0.50, 0.70,0.99]:
-            for bıdık in[0.5]:
+        for gamma in[0.99]:
+            for bıdık in[0.5]:#bu değişken datcom environmentında ceza fonksiyonun katsayısı. normalde 10 idi, ben 0ve 100 arasında değerler denedim ama etkisine dair kesin olarak bir çıkarım yapamadım
                 args = {"env_name":"Datcom-v1",
                         "policy":policy,
                         "eval":True,
                         "gamma":0.50,
                         "tau":0.005,
                         "lr":lr,
-                        "alpha":0.01,
+                        "alpha":0.01,#orijinal kodda alpha 0.2ydi ben 0.01 ile 0.4 arasındaki değerleri denedim
                         "automatic_entropy_tuning":False,
                         "seed":123456,
                         "batch_size":128,
@@ -419,12 +413,6 @@ for policy in["deterministic","Gaussian"]:
                             for i in range(args["updates_per_step"]):
                                 # Update parameters of all the networks
                                 critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory, args["batch_size"], updates)
-                                """
-                                writer.add_scalar('loss/critic_1', critic_1_loss, updates)
-                                writer.add_scalar('loss/critic_2', critic_2_loss, updates)
-                                writer.add_scalar('loss/policy', policy_loss, updates)
-                                writer.add_scalar('loss/entropy_loss', ent_loss, updates)
-                                writer.add_scalar('entropy_temprature/alpha', alpha, updates)"""
                                 updates += 1
                         
                         next_state, reward, done, _ = env.step(action,normed_state,args["bıdık"]) # Step
@@ -466,4 +454,3 @@ for policy in["deterministic","Gaussian"]:
 
 
                 env.close()
-
