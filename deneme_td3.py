@@ -5,18 +5,16 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F 
 from tensorboardX import SummaryWriter
-
 import gym
 import sys
 import datcom_gym_env
-#env = gym.make('Datcom-v1')
-     
 
 args = {'max_episode': 2000,
         'log_interval': 1}
 
-#networks
-class Actor(nn.Module):
+#actor ve critic networklerinin initialize edilmesi
+
+class Actor(nn.Module):#3 katmanlı ve (8,200,300) nöronlu bir ağ( başta (8,200,200)dü ) 
     def __init__(self, state_dim, action_dim, max_action,transfer = False):
         super(Actor,self).__init__()
         self.action_size = 5
@@ -33,7 +31,7 @@ class Actor(nn.Module):
 
         return x
         
-class Critic(nn.Module):
+class Critic(nn.Module):# 2 tane critic var
     def __init__(self,state_dim,action_dim):
         super(Critic,self).__init__()
 
@@ -62,7 +60,6 @@ class Critic(nn.Module):
 
     def Q1(self, x, u):
         xu = torch.cat([x, u], 1)
-
         x1 = F.relu(self.l1(xu))
         x1 = F.relu(self.l2(x1))
         x1 = self.l3(x1)
@@ -74,11 +71,11 @@ class ReplayBuffer(object):#holds SARS state,action,reward,next state
         self.max_size=max_size
         self.ptr=0
 
-    def add(self,data):#experience replay tuple-agents experience at a time t(yine sars)
+    def add(self,data):#SARS dediğimiz dataları buffera ekliyor
         if len(self.storage)==self.max_size:
             self.storage[int(self.ptr)]=data
             self.ptr=(self.ptr+1)% self.max_size
-            #storage dolduysa baştan tekrar doldurmaya başlıyor i guess?
+            #storage dolduysa baştan tekrar doldurmaya başlıyor 
         else:
             self.storage.append(data)
     def sample(self,batch_size):#train edeceği batch size
@@ -110,17 +107,14 @@ class TD3(object):
 
     def select_action(self, state):#pretty self explanatory
         state=torch.FloatTensor(state.reshape(1,-1)).to(device)
-
         action=self.actor(state)
         action=action.cpu().data.numpy().flatten()
-
-
         return action.clip(self.env.action_space.low, self.env.action_space.high)
 
     def train(self, replay_buffer, iterations, batch_size=100, discount=0.99,tau=0.005,policy_noise=2,noise_clip=0.05, policy_freq=2):
     #trains and updates actor and critic
         for it in range(iterations):
-            #sample relay buffer
+            #sample relay buffer yani bufferı random değerlerle dolduruyoruz
             x, y, u, r, d=replay_buffer.sample(batch_size)
             state=torch.FloatTensor(x).to(device)
             action=torch.FloatTensor(y).to(device)
@@ -135,7 +129,7 @@ class TD3(object):
 
             #target Q value
             target_Q1, target_Q2=self.critic_target(next_state, next_action)
-            target_Q=torch.min(target_Q1,target_Q2)
+            target_Q=torch.min(target_Q1,target_Q2) #2 criticten küçüğünü alıyor
             target_Q=reward+(done*discount*target_Q).detach()
 
             #current Q estimate
@@ -221,15 +215,9 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=3e-3):#train for ex
             writer.add_scalar('States/normed_state_5', state[5], global_step=epoch)
             writer.add_scalar('States/normed_state_6', state[6], global_step=epoch)
             writer.add_scalar('States/normed_state_7', state[7], global_step=epoch)
-            """
-            if(noise_bool==True):
-                noise=0.025*2.5066*noise_param*np.random.normal(0, noise_param, size=env.action_space.shape[0])
-            else:
-               """
+          
             noise = np.random.normal(0, noise_param, size=env.action_space.shape[0])
             
-            
-
             writer.add_scalar('Main/noise_0', noise[0], global_step=epoch)
             writer.add_scalar('Main/noise_1', noise[1], global_step=epoch)
             writer.add_scalar('Main/noise_2', noise[2], global_step=epoch)
@@ -276,8 +264,7 @@ def train(agent,noise_param=0.01, noise_clip_param=0.005, lr=3e-3):#train for ex
         writer.add_scalar('Main/episode_reward', total_reward, global_step=i)
         writer.add_scalar('Main/episode_steps', step, global_step=i)
         writer.add_scalar('Main/episode_CL_CD', env.cl_cd, global_step=i)
-       # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
-
+       
         if i % args['log_interval'] == 0:
             agent.save('deneme2', './')
 
@@ -289,11 +276,11 @@ OBSERVATION = 1000
 BATCH_SIZE = 128
 GAMMA = 0.99
 EXPLORE_NOISE = 0.2
-for bıdık in [0.01,0.05]:
-    for NOISE in [0.01,0.05]:#,5e-2,1e-1
-        for TAU in [5e-3]:
+for bıdık in [0.01,0.05]:#bu değişken datcom environmentında ceza fonksiyonun katsayısı. normalde 10 idi, ben 0ve 100 arasında değerler denedim ama etkisine dair kesin olarak bir çıkarım yapamadım
+    for NOISE in [0.01,0.05]:#1e-5 ten 5e-1 aralığında değerler denedim 0.3ten sonra absürd değerler çıkıyor. en iyi sonuç e-3 ve e-4te geliyor
+        for TAU in [5e-3]:#bu değerle fazla oynamadım 0.005te bıraktım. çok bir etkisi yok
             for POLICY_FREQUENCY in [2]:
-                for lr in [3e-3]:#, 3e-4
+                for lr in [3e-3]:#e-6 ve e-3 arasında değerler denedim e-3 en verimli değerdi
                     for noise_bool in[True]:
 
                         NOISE_CLIP = 2*NOISE
