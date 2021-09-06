@@ -47,7 +47,7 @@ deterministic ve gaussian
  ![SAC-layer](https://user-images.githubusercontent.com/67866767/132175313-57d50867-468c-4476-a597-5e7777d0ab5c.png)
  
  
-#Baseline değeri 2.381 olan CL/CD değeri için benim bulduğum değerler\
+# Baseline değeri 2.381 olan CL/CD değeri için benim bulduğum değerler\
 TD3 için ->2.56\
 SAC için ->2.53
 
